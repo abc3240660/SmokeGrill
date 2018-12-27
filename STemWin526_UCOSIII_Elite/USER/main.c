@@ -16,6 +16,7 @@
 #include "PID.h"
 #include "common.h"
 #include "dma.h"
+#include "iap.h"
 
 //START任务
 //设置任务的优先级
@@ -177,6 +178,13 @@ extern void GUIDEMO_UpdateTemp(int *temp_val);
 
 extern int g_time_remain;
 
+u8 g_ota_runing = 0;
+u32 g_ota_recv_sum = 0;
+u16 g_ota_one_pg_recv_tms = 0;
+u16 g_ota_pg_numid = 0;
+u16 g_ota_pg_nums = 0;
+u32 g_ota_bin_size = 0;
+
 #if 1
 // LOGO图片转大数组
 extern const unsigned char gImage_camp[1308];
@@ -256,6 +264,15 @@ int main(void)
 	uart_init(115200);	 	//串口初始化为115200
 	Usart_DMA_Init();
 	
+#if 0
+	if(((*(vu32*)(SYS_APP_BAK_SAVE_ADDR_BASE+4))&0xFF000000)==0x08000000)//判断是否为0X08XXXXXX.
+	{	 
+		iap_load_app(SYS_APP_BAK_SAVE_ADDR_BASE);//执行FLASH APP代码
+	}
+	
+	while(1);
+#endif
+
 	OSInit(&err);		//初始化UCOSIII
 	OS_CRITICAL_ENTER();//进入临界区
 	//创建开始任务
@@ -757,22 +774,73 @@ void touch_task(void *p_arg)
 	}
 }
 
+#define	PIECE_MAX_LEN   1024
+
+void SoftReset(void)
+{  
+	__set_FAULTMASK(1);
+ 	NVIC_SystemReset();
+}
+
+extern u32 USART_RX_STA;
+void wifi_task(void)
+{
+		u8 i = 0;
+		u16 wlen = 0;
+		u8 wtimes = 0;
+		u32 ack_len = 0;
+	
+		if((USART_RX_STA&(1<<19))==0x80000) {
+			if((0xFE==USART_RX_BUF[0]) && ((USART_RX_STA&0xFFFF)<30) && (g_ota_bin_size!=(g_ota_recv_sum+(USART_RX_STA&0xFFFF)))) {// IAP BIN001/BIN002...
+				run_cmd_from_usart(USART_RX_BUF, (USART_RX_STA&0xFFFF));
+			} else {// CMD
+				iap_write_appbin(FLASH_APP1_ADDR+(50*1024)*(g_ota_pg_numid-1), USART_RX_BUF, (USART_RX_STA&0xFFFF));//更新FLASH
+				printf("after iap_write_appbin ID(%d)-Addr(%X)-SIZE(%d)\n", g_ota_pg_numid, FLASH_APP1_ADDR+(50*1024)*(g_ota_pg_numid-1), (USART_RX_STA&0xFFFF));
+
+				if (g_ota_pg_nums == g_ota_pg_numid) {
+					download_success();
+	#if 1
+					SoftReset();
+	#else
+					if(((*(vu32*)(FLASH_APP1_ADDR+4))&0xFF000000)==0x08000000)//判断是否为0X08XXXXXX.
+					{	 
+						iap_load_app(FLASH_APP1_ADDR);//执行FLASH APP代码
+					}
+	#endif
+				}
+			}
+			
+			USART_RX_STA=0;
+			DMA_SetCurrDataCounter(DMA1_Channel5, U1_DMA_R_LEN);//DMA通道的DMA缓存的大小
+			DMA_Cmd(DMA1_Channel5, ENABLE);  //使能USART1 RX DMA1 所指示的通道
+		}
+}
+
 // 每隔2秒更新一次温度信息
 // 该函数中的温度信息应全部改为从温度棒读取
 void temp_watch_task(void *p_arg)
 {
 	int debug_temp=1;
 	OS_ERR err;
-	u8 pid_counter = 0;
+//	u8 pid_counter = 0;
 	
 #if FOR_DEBUG_USE
 	int tmpval  = 100;
 	int testcnt = 0;
 #endif
-		
+	
 	while(1)
 	{
 		LED0 = !LED0;
+		
+		wifi_task();
+		OSTimeDlyHMSM(0,0,0,100,OS_OPT_TIME_PERIODIC,&err);
+		//OSTimeDlyHMSM(0,0,0,500,OS_OPT_TIME_PERIODIC,&err);
+		//OSTimeDlyHMSM(0,0,0,500,OS_OPT_TIME_PERIODIC,&err);
+		//OSTimeDlyHMSM(0,0,0,500,OS_OPT_TIME_PERIODIC,&err);
+		//OSTimeDlyHMSM(0,0,0,10,OS_OPT_TIME_PERIODIC,&err);
+		
+		//printf("recv_len = %d, recv_times = %d\n", g_ota_one_pg_recv_tms, g_ota_pg_numid);
 		
 		// 保存至全局变量
 #if 0
@@ -782,15 +850,24 @@ void temp_watch_task(void *p_arg)
 		g_temp_val_new.temp4 = debug_temp % 501;
 		g_temp_val_new.temp5 = debug_temp % 501;
 		debug_temp++;
+		OSTimeDlyHMSM(0,0,0,500,OS_OPT_TIME_PERIODIC,&err);
 	
 #else
-		g_temp_val_new.temp1 = (int)Get_Temperature(ADC_Channel_6);
+/*		g_temp_val_new.temp1 = (int)Get_Temperature(ADC_Channel_6);
 		g_temp_val_new.temp2 = (int)Get_Temperature(ADC_Channel_5);
 		g_temp_val_new.temp3 = (int)Get_Temperature(ADC_Channel_4);
 		g_temp_val_new.temp4 = (int)Get_Temperature(ADC_Channel_3);
+*/
 		g_temp_val_new.temp5 = (int)Get_Temperature(ADC_Channel_2);
-#endif
 
+		
+		g_temp_val_new.temp1 = Smoke_Mult*10; //P_out;  //  *******************************************  PID display  *******************
+		g_temp_val_new.temp2 = g_time_remain; //I_out; //g_target_temp_val; //I_out;
+		g_temp_val_new.temp3 = Auger_On/10;  //PID_dt;
+		g_temp_val_new.temp4 = I_out; //Auger_Off/10;	
+		
+#endif
+/*
 		if (0 == pid_counter) {
 			PID_dt++;
 			S1_Counter_TempAvg++;
@@ -805,7 +882,7 @@ void temp_watch_task(void *p_arg)
 		pid_counter++;
 		if (10 == pid_counter) {
 			pid_counter = 0;
-		}
+		} */
 	}
 }
 		int g_sensor_error_continue=0;
@@ -893,6 +970,8 @@ void run_task(void *p_arg)
 	int flame_run_hot_status=0;
 	int cnt_1s=0;
 	
+	u8 pid_counter = 0;
+	
 	g_startup_mode_last = 0;
 	g_run_mode_last = 0;
 	g_feed_mode_last = 0;
@@ -919,7 +998,7 @@ void run_task(void *p_arg)
 				case STARTUP://startup模式
 					if((g_temp_val_new.temp5 > 600))
 					{
-						g_fatal_error =3;//over temp 高温报警
+						g_fatal_error = 3;//over temp 高温报警
 						g_current_mode = VOER_ERROR;
 					}	
 					Startup_Mode(360 - g_startup_mode_counter);
@@ -936,7 +1015,7 @@ void run_task(void *p_arg)
 					}
 					if((g_temp5_error == 1))
 					{
-						g_fatal_error =2;//sensor error RTD 报警
+						g_fatal_error = 2;//sensor error RTD 报警
 						g_current_mode = SENSOR_ERROR;
 					}
 					/*if (59 == g_run_mode_counter_sec) 
@@ -1096,103 +1175,22 @@ void run_task(void *p_arg)
 					break;
 			}
 		}
-		
+	
 	if (RUN == g_current_mode)
 	{
-	#if FOR_Time_USE  //time control
-			if(g_target_temp_val == 150)//low smoke
-			{
-				if(g_temp_val_new.temp5 > 160)
-				{
-					Auger_On=60;//6S
-					Auger_Off=400;//40s
-				}else
-				{
-					Auger_On=100;
-					Auger_Off=250;
-				}
-			}else if(g_target_temp_val == 155)//high smoke
-			{
-				if(g_temp_val_new.temp5 > 220)
-				{
-					Auger_On=60;
-					Auger_Off=400;
-				}else
-				{
-					Auger_On=200;
-					Auger_Off=250;
-				}
-			}else if((g_target_temp_val >= 160) &&(g_target_temp_val <= 210))
-			{
-				if(g_temp_val_new.temp5 > g_target_temp_val)
-				{
-					Auger_On=60;
-					Auger_Off=400;
-				}else
-				{
-					Auger_On=60;
-					Auger_Off=100;
-				}
-			}else if((g_target_temp_val > 210) &&(g_target_temp_val <= 260))
-			{
-				if(g_temp_val_new.temp5 > g_target_temp_val)
-				{
-					Auger_On=60;
-					Auger_Off=400;
-				}else
-				{
-					Auger_On=100;
-					Auger_Off=100;
-				}
-			}else if((g_target_temp_val > 260) &&(g_target_temp_val <= 310))
-			{
-				if(g_temp_val_new.temp5 > g_target_temp_val)
-				{
-					Auger_On=60;
-					Auger_Off=400;
-				}else
-				{
-					Auger_On=200;
-					Auger_Off=100;
-				}
-			}else if((g_target_temp_val > 310) &&(g_target_temp_val <= 360))
-			{
-				if(g_temp_val_new.temp5 > g_target_temp_val)
-				{
-					Auger_On=60;
-					Auger_Off=400;
-				}else
-				{
-					Auger_On=300;
-					Auger_Off=100;
-				}
-			}else if((g_target_temp_val > 360) &&(g_target_temp_val <= 450))
-			{
-				if(g_temp_val_new.temp5 > g_target_temp_val)
-				{
-					Auger_On=60;
-					Auger_Off=400;
-				}else
-				{
-					Auger_On=400;
-					Auger_Off=100;
-				}
-			}else if(g_target_temp_val > 450)
-			{
-				if(g_temp_val_new.temp5 > g_target_temp_val)
-				{
-					Auger_On=60;
-					Auger_Off=400;
-				}else
-				{
-					Auger_On=0;
-					Auger_Off=0;
-				}
-			}
-	#endif 			
-				
-				
-				
+			if(sec_ON_left <= Auger_On)
+				Run_Mode_MOT_ON(1);
+			else
+				Run_Mode_MOT_ON(0);
+			
+			sec_ON_left++;
+			
+			if(sec_ON_left >= (Auger_On + Auger_Off))
+				sec_ON_left = 0;
+			
+			g_time_remain = sec_ON_left/10.0;       // 											************  TESTING ONLY  *******************
+						
+	/*			
 			if((sec_ON != Auger_On) || (sec_OFF != Auger_Off))
 			{//开启关闭时间变化
 				sec_ON_left = Auger_On;
@@ -1219,10 +1217,74 @@ void run_task(void *p_arg)
 					sec_ON_left=sec_ON;
 					sec_OFF_left=sec_OFF;
 				}
+				 g_time_remain = (sec_ON_left + sec_OFF_left)/10;
 			}
 			else Run_Mode_MOT_ON(1);//The motor continues to keep going
 		}
+	*/	
+/*
+				if(sec_ON_left < Auger_On)  //  ---------------------------TESTING   MIN FEED 6-46  RATE
+					Run_Mode_MOT_ON(1);
+				else
+				{
+					if(sec_OFF_left >= 460)						// Turn off Auger after additional 6 seconds OFF time  ...change to use Auger_On_Min???
+					{
+						sec_OFF_left = 0;
+						Run_Mode_MOT_ON(0);
+					}
+				else if(sec_OFF_left >=400)				//	Turn on Auger after 40 seconds OFF time (min feed rate)
+					Run_Mode_MOT_ON(1);
+					else
+						Run_Mode_MOT_ON(0);
+					
+						sec_OFF_left++;
+				}
+					
+				sec_ON_left++;
+				
+				if(sec_ON_left >= (Auger_On + Auger_Off))
+				{
+					sec_ON_left = 0;
+					sec_OFF_left = 0;
+				}
+*/
+			
 
+			if (0 == pid_counter) 
+			{
+				PID_dt++;
+				S1_Counter_TempAvg++;
+			}
+		
+			pid_counter++;
+				
+			if (10 == pid_counter) 
+				pid_counter = 0;
+		
+		
+			PID_Ctr(g_temp_val_new.temp5, g_set_temp);		
+		
+/*				
+				if(sec_ON_left < Auger_On)
+					{
+						Run_Mode_MOT_ON(1);
+						sec_ON_left++;
+					}
+				else if(sec_OFF_left < Auger_Off)
+					{
+						Run_Mode_MOT_ON(0);
+						sec_OFF_left++;
+					}
+				
+				if((sec_ON_left + sec_OFF_left) >= (Auger_On + Auger_Off))
+				{
+					sec_ON_left = 0;
+					sec_OFF_left = 0;
+				}
+				 g_time_remain = (sec_ON_left + sec_OFF_left)/10;
+*/
+		}	
+		
 		OSTimeDlyHMSM(0,0,0,50,OS_OPT_TIME_PERIODIC,&err);
 		OSTimeDlyHMSM(0,0,0,50,OS_OPT_TIME_PERIODIC,&err);
 	}

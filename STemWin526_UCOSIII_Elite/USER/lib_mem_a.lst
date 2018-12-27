@@ -444,12 +444,11 @@ ARM Macro Assembler    Page 7
   310 00000220         
   311 00000220                 END
 Command Line: --debug --xref --diag_suppress=9931 --cpu=Cortex-M3 --apcs=interw
-ork --depend=..\obj\lib_mem_a.d -o..\obj\lib_mem_a.o -ID:\working\gitsrc\STemWi
-n526_UCOSIII_Elite\USER\RTE -IC:\Keil_v5\ARM\PACK\Keil\STM32F1xx_DFP\2.1.0 -IC:
-\Keil_v5\ARM\CMSIS\Include -IC:\Keil_v5\ARM\PACK\Keil\STM32F1xx_DFP\2.1.0\Devic
-e\Include --predefine="__UVISION_VERSION SETA 514" --predefine="STM32F10X_HD SE
-TA 1" --list=.\lib_mem_a.lst ..\UCOSIII\uC-LIB\Ports\ARM-Cortex-M3\RealView\lib
-_mem_a.asm
+ork --depend=..\obj\lib_mem_a.d -o..\obj\lib_mem_a.o -ID:\working\smokeGrill\12
+22\STemWin526_UCOSIII_Elite_1212_v2_ori\STemWin526_UCOSIII_Elite_1223\USER\RTE 
+-IC:\Keil_v5\ARM\PACK\Keil\STM32F1xx_DFP\2.1.0 -IC:\Keil_v5\ARM\CMSIS\Include -
+-predefine="__UVISION_VERSION SETA 514" --predefine="STM32F10X_XL SETA 1" --lis
+t=.\lib_mem_a.lst ..\UCOSIII\uC-LIB\Ports\ARM-Cortex-M3\RealView\lib_mem_a.asm
 
 
 

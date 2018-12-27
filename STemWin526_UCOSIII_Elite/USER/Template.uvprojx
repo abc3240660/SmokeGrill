@@ -12,16 +12,16 @@
       <ToolsetName>ARM-ADS</ToolsetName>
       <TargetOption>
         <TargetCommonOption>
-          <Device>STM32F103ZE</Device>
+          <Device>STM32F103ZG</Device>
           <Vendor>STMicroelectronics</Vendor>
           <PackID>Keil.STM32F1xx_DFP.2.1.0</PackID>
           <PackURL>http://www.keil.com/pack/</PackURL>
-          <Cpu>IROM(0x08000000,0x80000) IRAM(0x20000000,0x10000) CPUTYPE("Cortex-M3") CLOCK(12000000) ELITTLE</Cpu>
+          <Cpu>IROM(0x08000000,0x100000) IRAM(0x20000000,0x18000) CPUTYPE("Cortex-M3") CLOCK(12000000) ELITTLE</Cpu>
           <FlashUtilSpec></FlashUtilSpec>
           <StartupFile></StartupFile>
-          <FlashDriverDll>UL2CM3(-S0 -C0 -P0 -FD20000000 -FC1000 -FN1 -FF0STM32F10x_512 -FS08000000 -FL080000 -FP0($$Device:STM32F103ZE$Flash\STM32F10x_512.FLM))</FlashDriverDll>
-          <DeviceId>4216</DeviceId>
-          <RegisterFile>$$Device:STM32F103ZE$Device\Include\stm32f10x.h</RegisterFile>
+          <FlashDriverDll>UL2CM3(-S0 -C0 -P0 -FD20000000 -FC1000 -FN1 -FF0STM32F10x_1024 -FS08000000 -FL0100000 -FP0($$Device:STM32F103ZG$Flash/STM32F10x_1024.FLM))</FlashDriverDll>
+          <DeviceId>0</DeviceId>
+          <RegisterFile>$$Device:STM32F103ZG$Device/Include/stm32f10x.h</RegisterFile>
           <MemoryEnv></MemoryEnv>
           <Cmp></Cmp>
           <Asm></Asm>
@@ -31,7 +31,7 @@
           <SLE66CMisc></SLE66CMisc>
           <SLE66AMisc></SLE66AMisc>
           <SLE66LinkerMisc></SLE66LinkerMisc>
-          <SFDFile>$$Device:STM32F103ZE$SVD\STM32F103xx.svd</SFDFile>
+          <SFDFile>$$Device:STM32F103ZG$SVD/STM32F103xx.svd</SFDFile>
           <bCustSvd>0</bCustSvd>
           <UseEnv>0</UseEnv>
           <BinPath></BinPath>
@@ -78,9 +78,9 @@
             <nStopB2X>0</nStopB2X>
           </BeforeMake>
           <AfterMake>
-            <RunUserProg1>0</RunUserProg1>
+            <RunUserProg1>1</RunUserProg1>
             <RunUserProg2>0</RunUserProg2>
-            <UserProg1Name></UserProg1Name>
+            <UserProg1Name>fromelf.exe   --bin -o  ..\OBJ\MALLOC.bin ..\OBJ\MALLOC.axf</UserProg1Name>
             <UserProg2Name></UserProg2Name>
             <UserProg1Dos16Mode>0</UserProg1Dos16Mode>
             <UserProg2Dos16Mode>0</UserProg2Dos16Mode>
@@ -106,13 +106,13 @@
         </CommonProperty>
         <DllOption>
           <SimDllName>SARMCM3.DLL</SimDllName>
-          <SimDllArguments></SimDllArguments>
-          <SimDlgDll>DARMSTM.DLL</SimDlgDll>
-          <SimDlgDllArguments>-pSTM32F103ZE</SimDlgDllArguments>
+          <SimDllArguments> -REMAP -MPU</SimDllArguments>
+          <SimDlgDll>DCM.DLL</SimDlgDll>
+          <SimDlgDllArguments>-pCM3</SimDlgDllArguments>
           <TargetDllName>SARMCM3.DLL</TargetDllName>
-          <TargetDllArguments></TargetDllArguments>
-          <TargetDlgDll>TARMSTM.DLL</TargetDlgDll>
-          <TargetDlgDllArguments>-pSTM32F103ZE</TargetDlgDllArguments>
+          <TargetDllArguments> -MPU</TargetDllArguments>
+          <TargetDlgDll>TCM.DLL</TargetDlgDll>
+          <TargetDlgDllArguments>-pCM3</TargetDlgDllArguments>
         </DllOption>
         <DebugOption>
           <OPTHX>
@@ -137,13 +137,13 @@
           <Target>
             <UseTarget>1</UseTarget>
             <LoadApplicationAtStartup>1</LoadApplicationAtStartup>
-            <RunToMain>1</RunToMain>
+            <RunToMain>0</RunToMain>
             <RestoreBreakpoints>1</RestoreBreakpoints>
             <RestoreWatchpoints>1</RestoreWatchpoints>
             <RestoreMemoryDisplay>1</RestoreMemoryDisplay>
             <RestoreFunctions>0</RestoreFunctions>
             <RestoreToolbox>1</RestoreToolbox>
-            <RestoreTracepoints>0</RestoreTracepoints>
+            <RestoreTracepoints>1</RestoreTracepoints>
             <RestoreSysVw>1</RestoreSysVw>
           </Target>
           <RunDebugAfterBuild>0</RunDebugAfterBuild>
@@ -171,10 +171,10 @@
             <RunIndependent>0</RunIndependent>
             <UpdateFlashBeforeDebugging>1</UpdateFlashBeforeDebugging>
             <Capability>1</Capability>
-            <DriverSelection>4099</DriverSelection>
+            <DriverSelection>4096</DriverSelection>
           </Flash1>
           <bUseTDR>1</bUseTDR>
-          <Flash2>Segger\JL2CM3.dll</Flash2>
+          <Flash2>BIN\UL2CM3.DLL</Flash2>
           <Flash3>"" ()</Flash3>
           <Flash4></Flash4>
           <pFcarmOut></pFcarmOut>
@@ -280,12 +280,12 @@
               <IRAM>
                 <Type>0</Type>
                 <StartAddress>0x20000000</StartAddress>
-                <Size>0x10000</Size>
+                <Size>0x18000</Size>
               </IRAM>
               <IROM>
                 <Type>1</Type>
                 <StartAddress>0x8000000</StartAddress>
-                <Size>0x80000</Size>
+                <Size>0x100000</Size>
               </IROM>
               <XRAM>
                 <Type>0</Type>
@@ -309,8 +309,8 @@
               </OCR_RVCT3>
               <OCR_RVCT4>
                 <Type>1</Type>
-                <StartAddress>0x8000000</StartAddress>
-                <Size>0x80000</Size>
+                <StartAddress>0x800f000</StartAddress>
+                <Size>0x70800</Size>
               </OCR_RVCT4>
               <OCR_RVCT5>
                 <Type>1</Type>
@@ -335,7 +335,7 @@
               <OCR_RVCT9>
                 <Type>0</Type>
                 <StartAddress>0x20000000</StartAddress>
-                <Size>0x10000</Size>
+                <Size>0x18000</Size>
               </OCR_RVCT9>
               <OCR_RVCT10>
                 <Type>0</Type>
@@ -363,9 +363,9 @@
             <useXO>0</useXO>
             <VariousControls>
               <MiscControls></MiscControls>
-              <Define>STM32F10X_HD,USE_STDPERIPH_DRIVER</Define>
+              <Define>USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\HARDWARE\LED;..\SYSTEM\delay;..\SYSTEM\sys;..\SYSTEM\usart;..\USER;..\STM32F10x_FWLib\inc;..\CORE;..\FWLIB\STM32F10x_FWLib\inc;..\HARDWARE\KEY;..\HARDWARE\LCD;..\HARDWARE\IIC;..\HARDWARE\24CXX;..\HARDWARE\SPI;..\HARDWARE\FLASH;..\HARDWARE\TOUCH;..\HARDWARE\SRAM;..\HARDWARE\TIMER;..\MALLOC;..\USMART;..\EMWIN\STemWin\Config;..\EMWIN\STemWin\inc;..\EMWIN\STemWin\OS;..\EMWIN\Demo;..\UCOSIII\uC-CPU;..\UCOSIII\uC-LIB;..\UCOSIII\uCOS-III;..\UCOSIII\UCOS_BSP;..\UCOSIII\uCOS_CONFIG;..\UCOSIII\uCOS-III\Source;..\UCOSIII\uC-CPU\ARM-Cortex-M3\RealView;..\UCOSIII\uC-LIB\Ports\ARM-Cortex-M3\RealView;..\UCOSIII\uCOS-III\Ports\ARM-Cortex-M3\Generic\RealView;..\HARDWARE\EC11KEY;..\HARDWARE\ADC;..\HARDWARE\CONTROL;..\HARDWARE\PID;..\HARDWARE\DMA</IncludePath>
+              <IncludePath>..\HARDWARE\LED;..\SYSTEM\delay;..\SYSTEM\sys;..\SYSTEM\usart;..\USER;..\STM32F10x_FWLib\inc;..\CORE;..\FWLIB\STM32F10x_FWLib\inc;..\HARDWARE\KEY;..\HARDWARE\LCD;..\HARDWARE\IIC;..\HARDWARE\24CXX;..\HARDWARE\SPI;..\HARDWARE\FLASH;..\HARDWARE\TOUCH;..\HARDWARE\SRAM;..\HARDWARE\TIMER;..\MALLOC;..\USMART;..\EMWIN\STemWin\Config;..\EMWIN\STemWin\inc;..\EMWIN\STemWin\OS;..\EMWIN\Demo;..\UCOSIII\uC-CPU;..\UCOSIII\uC-LIB;..\UCOSIII\uCOS-III;..\UCOSIII\UCOS_BSP;..\UCOSIII\uCOS_CONFIG;..\UCOSIII\uCOS-III\Source;..\UCOSIII\uC-CPU\ARM-Cortex-M3\RealView;..\UCOSIII\uC-LIB\Ports\ARM-Cortex-M3\RealView;..\UCOSIII\uCOS-III\Ports\ARM-Cortex-M3\Generic\RealView;..\HARDWARE\EC11KEY;..\HARDWARE\ADC;..\HARDWARE\CONTROL;..\HARDWARE\PID;..\HARDWARE\DMA;..\HARDWARE\STMFLASH;..\HARDWARE\IAP</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -478,6 +478,16 @@
               <FileType>1</FileType>
               <FilePath>..\HARDWARE\TIMER\timer.c</FilePath>
             </File>
+            <File>
+              <FileName>iap.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\HARDWARE\IAP\iap.c</FilePath>
+            </File>
+            <File>
+              <FileName>stmflash.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\HARDWARE\STMFLASH\stmflash.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -582,6 +592,11 @@
               <FileName>stm32f10x_dma.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\FWLIB\STM32F10x_FWLib\src\stm32f10x_dma.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f10x_flash.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\FWLIB\STM32F10x_FWLib\src\stm32f10x_flash.c</FilePath>
             </File>
           </Files>
         </Group>

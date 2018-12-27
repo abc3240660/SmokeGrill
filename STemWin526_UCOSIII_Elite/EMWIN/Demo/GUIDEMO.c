@@ -103,6 +103,8 @@ void GUIDEMO_ClearScreen(int x0, int y0,int x1,int y1);
 void GUIDEMO_StartupTimerLeftUI(int sel, int time1, int time2, int update, int ui_sel);
 int GUIDEMO_StartupTimerUI(void);
 int GUIDEMO_FeedShutdownTmerUI(int mode);
+void GUIDEMO_WifiIcon(int single);
+void GUIDEMO_BluetoothIcon(void);
 /*******************************************************************
 *
 *       Static variables
@@ -224,6 +226,8 @@ extern EC11_STA ec11_int_event;
 extern u16 step_left;
 extern u16 step_right;
 
+extern u16 g_idle_mode_counter;
+extern u16 g_run_mode_timeout_counter;
 extern u16 g_startup_mode_counter;
 extern u16 g_run_mode_counter_mins;// minutes
 extern u16 g_run_mode_counter_sec;// seconds
@@ -251,7 +255,7 @@ int g_is_night_mode=0;
 extern		int g_sensor_error_mode_counter;
 extern		int g_flame_error_mode_counter;
 
-
+extern int g_GUI;
 int g_time_remain = 0;
 int g_is_lastui_bypassdetail = 0;
 int direct_switch_check(void)
@@ -285,7 +289,14 @@ int direct_switch_check(void)
 			//GUIDEMO_FeedShutdownTmerUI(0);
 			return DIRECT_SHUT_COMPELED;
 		}
-		
+		if((g_current_mode == IDLE)&&(g_idle_mode_counter>TIMEOUT_30S)&&(g_GUI != GUI_MAIN))
+		{
+			return IDLE_TIMEOUT_ERR;
+		}
+		if((g_current_mode == RUN)&&(g_run_mode_timeout_counter>TIMEOUT_30S)&&(g_GUI != GUI_RUN))
+		{
+			return RUN_TIMEOUT_ERR;
+		}
 //		if((g_current_mode==STARTUP)&&(g_startup_mode_counter==0))
 //		{
 //			g_direct_feed=0;
@@ -551,7 +562,7 @@ void GUIDEMO_RightTempUI(int *temp, int has_big, int big, int update)
 			if(has_big)//根据是否有big温度选择坐标
 			{
 #ifdef SRAM_MEMDEV
-				hMem = GUI_MEMDEV_Create(  pRect[0].x0, pRect[0].y0-90, 250, 90);
+				hMem = GUI_MEMDEV_Create(  pRect[0].x0-15, pRect[0].y0-90, 265, 90);
 				GUI_MEMDEV_Select(hMem);
 #endif
 				if(g_is_night_mode==0)
@@ -562,11 +573,23 @@ void GUIDEMO_RightTempUI(int *temp, int has_big, int big, int update)
 					GUI_SetBkColor(bk_color);
 					GUI_SetColor(GUI_WHITE);
 				}
-				GUI_SetFont(&GUI_FontHelveticaNeueLTStdCn25);
+				GUI_SetFont(&GUI_FontHelveticaNeueLTStdCn89);
+				GUI_DispStringHCenterAt("      ",  pRect[1].x0, pRect[0].y0-90);//clear
+				GUIDEMO_WifiIcon(0);
+				GUIDEMO_BluetoothIcon();
+				if(g_is_night_mode==0)
+				{
+					GUI_SetBkColor(bk_color);
+					GUI_SetColor(GUI_BLACK);
+				}else{
+					GUI_SetBkColor(bk_color);
+					GUI_SetColor(GUI_WHITE);
+				}
+				GUI_SetFont(&GUI_FontHelveticaNeueLTStdCn60);
 				if(g_temp_val_new.temp_unit==0)
-					GUI_DispStringAt("°F ",445, 10);
+					GUI_DispStringAt("°F",422, 1);
 				else
-					GUI_DispStringAt("°C",445, 10);
+					GUI_DispStringAt("°C",422, 1);
 
 				GUI_SetBkColor(bk_color);
 				GUI_SetColor(g_big_temp_color);				
@@ -578,7 +601,7 @@ void GUIDEMO_RightTempUI(int *temp, int has_big, int big, int update)
 					} else {
 						sprintf(dispStr, "%.d", TEMP_F2C(temp_val.temp5));
 					}
-					GUI_DispStringHCenterAt("      ",  pRect[0].x1, pRect[0].y0-90);
+					GUI_DispStringHCenterAt("   ",  pRect[0].x1, pRect[0].y0-90);
 					if (0 == g_temp5_error) {
 						GUI_DispStringHCenterAt(dispStr,pRect[1].x0, pRect[0].y0-90);
 					} else {
@@ -603,7 +626,7 @@ void GUIDEMO_RightTempUI(int *temp, int has_big, int big, int update)
 				}
 
 #ifdef SRAM_MEMDEV
-				GUI_MEMDEV_CopyToLCDAt(hMem, pRect[0].x0, pRect[0].y0-90);
+				GUI_MEMDEV_CopyToLCDAt(hMem, pRect[0].x0-15, pRect[0].y0-90);
 				
 				GUI_MEMDEV_Delete(hMem);
 				
@@ -617,6 +640,86 @@ void GUIDEMO_RightTempUI(int *temp, int has_big, int big, int update)
 			break;
 	}
 }
+void GUIDEMO_right_WarnIcon(void)
+{
+	int offset=240;
+	GUI_POINT aPoint[3]={25,6,
+										3, 42,
+										47,42};
+	aPoint[0].x +=offset;
+	aPoint[1].x +=offset;
+	aPoint[2].x +=offset;
+										
+	GUI_SetPenSize(3);
+	if(g_is_night_mode==0)
+	{
+		GUI_SetBkColor(USER_COLOR1_RED);
+		GUI_SetColor(GUI_WHITE);
+		GUI_DrawPolygon(aPoint, 3, 128-22,50-25);
+		GUI_DrawLine(131+offset,43,131+offset,55);
+		GUI_DrawPoint(131+offset,60);
+		
+	}else{
+		GUI_SetBkColor(GUI_WHITE);
+		GUI_SetColor(USER_COLOR1_RED);
+		GUI_DrawPolygon(aPoint, 3, 128-22,50-25);
+		GUI_DrawLine(131+offset,43,131+offset,55);
+		GUI_DrawPoint(131+offset,60);
+	}
+
+}
+void set_smoke_warn(int ui_sel)
+{
+	int offset=240;
+	char dispStr[64] = "";
+	GUI_RECT logo={260, 10,  470,  260};
+	GUI_RECT Item_rect[] = {{10, 210, 243, 258},
+							{10, 260, 243, 308}};
+	char *Item_str[]={"CONFIRM","CANCEL"};
+	GUI_POINT Item_pos[]={{50, 12+50*4},//comfirm
+										    {60, 12+50*5}};//cancel
+	if(g_is_night_mode==0)
+		GUI_SetColor(USER_COLOR1_RED);
+	else
+		GUI_SetColor(GUI_WHITE);
+	GUI_FillRect(logo.x0, logo.y0,  logo.x1, logo.y1);
+	if(g_is_night_mode==0)
+		GUI_SetColor(USER_COLOR7_GRAY);
+	else
+		GUI_SetColor(GUI_WHITE);
+	if(g_is_night_mode==0)
+	{
+		GUI_SetBkColor(USER_COLOR1_RED);
+		GUI_SetColor(GUI_WHITE);
+	}else{
+		GUI_SetBkColor(GUI_WHITE);
+		GUI_SetColor(GUI_BLACK);
+	}
+
+	
+			switch(ui_sel)
+			{
+				case 0:
+					GUIDEMO_right_WarnIcon();
+					GUI_SetFont(&GUI_FontHelveticaNeueLTStdCn23);
+					if(g_is_night_mode!=0)
+						GUI_SetColor(GUI_BLACK);
+					GUI_DispStringHCenterAt("WARNING:INCREASING",		    126+offset, 85);
+					GUI_DispStringHCenterAt("SMOKE LEVELS MAY",		    126+offset, 112);
+					GUI_DispStringHCenterAt("INCREASE TEMPERATURE",				    126+offset, 139);
+					GUI_DispStringHCenterAt("FLUCTUATIONS",				    126+offset, 166);
+					GUI_SetFont(&GUI_FontHelveticaNeueLTStdCn25);
+					if(g_is_night_mode!=0)
+						GUI_SetColor(USER_COLOR3_GRAY);
+				
+					break;
+				case 1 :
+				default:
+					break;
+			}
+
+}
+
 int target_temp_set=0;
 int target_smoke_set=0;
 // temperature setting ui / smoke setting ui
@@ -641,7 +744,13 @@ int GUIDEMO_BigCircleUI(int is_smoke_ui)
 
 	GUI_SetBkColor(bk_color);
 	GUIDEMO_ClearScreen(0,0,480,320);//清除屏幕
-	GUIDEMO_RightTempUI(NULL, 0, 0, 0);//画4个框
+	if(is_smoke_ui !=1)
+	{
+		GUIDEMO_RightTempUI(NULL, 0, 0, 0);//画4个框
+	}else
+	{
+		set_smoke_warn(0);
+	}
 	GUIDEMO_ProgressTimeBar(0, 0,0, 0);//底部灰色条
 	
 	EC11_Clear();
@@ -660,7 +769,8 @@ int GUIDEMO_BigCircleUI(int is_smoke_ui)
 		
 		if (0 == time_remain%10)//1s 更新
 		{
-			GUIDEMO_RightTempUI(NULL, 0, 0, 1);//更新框内4个温度
+			if(is_smoke_ui !=1)
+				GUIDEMO_RightTempUI(NULL, 0, 0, 1);//更新框内4个温度
 			if (RUN == g_current_mode) 
 				GUIDEMO_ProgressTimeBar(g_run_mode_counter_hour, g_run_mode_counter_mins,g_run_mode_counter_sec, 1);//底部灰色条
 			if (2 == is_smoke_ui) 
@@ -743,7 +853,7 @@ int GUIDEMO_BigCircleUI(int is_smoke_ui)
 				} else {
 					sprintf(dispStr, "%.d", TEMP_F2C(target_val_center));
 				}
-				if (150 == target_val_center) {
+				if ((EXT_MAX_SS_MIN-10) == target_val_center) {
 					GUI_SetFont(&GUI_FontHelveticaNeueLTStdCn79);
 					GUI_DispStringHCenterAt("LOW",      130, 45);
 					GUI_DispStringHCenterAt("SMOKE",    130, 110);
@@ -752,7 +862,7 @@ int GUIDEMO_BigCircleUI(int is_smoke_ui)
 					GUI_DispStringHCenterAt("160 SET TEMP",  130, 185);
 					//g_target_temp_val=160;
 					g_smoke_val_percent = 10;
-				} else if (155 == target_val_center) {
+				} else if ((EXT_MAX_SS_MIN-5) == target_val_center) {
 					GUI_SetFont(&GUI_FontHelveticaNeueLTStdCn79);
 					GUI_DispStringHCenterAt("HIGH",     130, 45);
 					GUI_DispStringHCenterAt("SMOKE",    130, 110);
@@ -761,7 +871,7 @@ int GUIDEMO_BigCircleUI(int is_smoke_ui)
 					GUI_DispStringHCenterAt("220 SET TEMP",  130, 185);
 					//g_target_temp_val=220;
 					g_smoke_val_percent = 10;
-				} else if (500 == target_val_center) {
+				} else if (EXT_MAX_SS_MAX == target_val_center) {
 					GUI_SetFont(&GUI_FontHelveticaNeueLTStdCn114);
 					GUI_DispStringHCenterAt("HIGH",     130, 65);
 
@@ -775,22 +885,24 @@ int GUIDEMO_BigCircleUI(int is_smoke_ui)
 					GUI_SetFont(&GUI_FontHelveticaNeueLTStdCn34);
 					GUI_DispStringHCenterAt("SET TEMP",  130, 180);				
 				}
+				
+				GUI_SetFont(&GUI_FontHelveticaNeueLTStdCn60);
 				//单位 F/C
 				if (g_is_night_mode)// night
 				{
 					GUI_SetBkColor(GUI_BLACK);
 					GUI_SetColor(GUI_WHITE);
 					if(g_temp_val_new.temp_unit==0)
-						GUI_DispStringAt("°F ",10, 10);
+						GUI_DispStringAt("°F",210, 1);
 					else
-						GUI_DispStringAt("°C",10, 10);
+						GUI_DispStringAt("°C",210, 1);
 				}else{//day
 					GUI_SetBkColor(GUI_WHITE);
 					GUI_SetColor(GUI_BLACK);
 					if(g_temp_val_new.temp_unit==0)
-						GUI_DispStringAt("°F ",10, 10);
+						GUI_DispStringAt("°F",210, 1);
 					else
-						GUI_DispStringAt("°C",10, 10);
+						GUI_DispStringAt("°C",210, 1);
 				}
 			} else if (2 == is_smoke_ui) 
 			{// run screen
@@ -800,7 +912,7 @@ int GUIDEMO_BigCircleUI(int is_smoke_ui)
 				GUI_SetColor(g_big_temp_color);
 				pen_size = GUI_GetPenSize();
 				GUI_SetPenSize(3);
-				if((g_target_temp_val != 150) && (g_target_temp_val != 155))
+				if((g_target_temp_val != (EXT_MAX_SS_MIN-10)) && (g_target_temp_val != (EXT_MAX_SS_MIN-5)))
 					GUI_DrawLine(55, 190+5, 210, 190+5);
 				GUI_SetPenSize(pen_size);
 				GUI_SetBkColor(bk_color);
@@ -815,14 +927,14 @@ int GUIDEMO_BigCircleUI(int is_smoke_ui)
 
 				g_target_temp_val = g_temp_val_new.target_val;
 	
-				if (150 == g_target_temp_val) {
+				if ((EXT_MAX_SS_MIN-10) == g_target_temp_val) {
 					//GUI_DispStringHCenterAt("160 SET TEMP",  130, 160+5);
 					GUI_DispStringHCenterAt("LOW SMOKE",  130, 160+5);
 
-				} else if (155 == g_target_temp_val) {
+				} else if ((EXT_MAX_SS_MIN-5) == g_target_temp_val) {
 					//GUI_DispStringHCenterAt("220 SET TEMP",  130, 160+5);
 					GUI_DispStringHCenterAt("HIGH SMOKE",  130, 160+5);
-				} else if (500 == g_target_temp_val) {
+				} else if (EXT_MAX_SS_MAX == g_target_temp_val) {
 					GUI_DispStringHCenterAt("HIGH SET TEMP",  130, 160+5);
 					sprintf(dispStr, "%d SMOKE", g_smoke_val_percent);
 					GUI_DispStringHCenterAt(dispStr,  130, 195+5);
@@ -834,21 +946,22 @@ int GUIDEMO_BigCircleUI(int is_smoke_ui)
 					
 				}
 				//单位 F/C
+				GUI_SetFont(&GUI_FontHelveticaNeueLTStdCn60);
 				if (g_is_night_mode)// night
 				{
 					GUI_SetBkColor(GUI_BLACK);
 					GUI_SetColor(GUI_WHITE);
 					if(g_temp_val_new.temp_unit==0)
-						GUI_DispStringAt("°F ",10, 10);
+						GUI_DispStringAt("°F",210, 1);
 					else
-						GUI_DispStringAt("°C",10, 10);
+						GUI_DispStringAt("°C",210, 1);
 				}else{//day
 					GUI_SetBkColor(GUI_WHITE);
 					GUI_SetColor(GUI_BLACK);
 					if(g_temp_val_new.temp_unit==0)
-						GUI_DispStringAt("°F ",10, 10);
+						GUI_DispStringAt("°F",210, 1);
 					else
-						GUI_DispStringAt("°C",10, 10);
+						GUI_DispStringAt("°C",210, 1);
 				}
 			}
 			
@@ -886,10 +999,10 @@ int GUIDEMO_BigCircleUI(int is_smoke_ui)
 						target_val_center = g_target_temp_val;
 					}
 				
-					if (495 == target_val_center) {
-						GUI_DrawArc(130,133,118,118,(90-2-(target_val_center-150)*360/350),90);
+					if ((EXT_MAX_SS_MAX-5) == target_val_center) {
+						GUI_DrawArc(130,133,118,118,(90-2-(target_val_center-(EXT_MAX_SS_MIN-10))*360/(EXT_MAX_SS_MAX-EXT_MAX_SS_MIN +10)),90);
 					} else {
-						GUI_DrawArc(130,133,118,118,(90-5-(target_val_center-150)*360/350),90);
+						GUI_DrawArc(130,133,118,118,(90-5-(target_val_center-(EXT_MAX_SS_MIN-10))*360/(EXT_MAX_SS_MAX-EXT_MAX_SS_MIN +10)),90);
 					}
 				}
 				GUI_SetPenSize(pen_size);
@@ -939,7 +1052,7 @@ int GUIDEMO_BigCircleUI(int is_smoke_ui)
 					}
 				} else 
 				{
-					if (target_val_center < 500) {// menu_index = 1
+					if (target_val_center < EXT_MAX_SS_MAX) {// menu_index = 1
 						target_val_center += 5;
 						//g_event_val_new.force_flush = 1;
 					}
@@ -957,7 +1070,7 @@ int GUIDEMO_BigCircleUI(int is_smoke_ui)
 						
 					}
 				} else {
-					if (target_val_center > 150) {// menu_index = 13
+					if (target_val_center > EXT_MAX_SS_MIN-10) {// menu_index = 13
 						target_val_center -= 5;
 						//g_event_val_new.force_flush = 1;
 						//temp_val.target_val = target_val_center;
@@ -975,9 +1088,9 @@ int GUIDEMO_BigCircleUI(int is_smoke_ui)
 						
 					}
 				} else {
-					if (target_val_center < 500) {
+					if (target_val_center < EXT_MAX_SS_MAX) {
 						target_val_center += BIG_GAP;
-						if(target_val_center>=500)target_val_center=500;
+						if(target_val_center>=EXT_MAX_SS_MAX)target_val_center=EXT_MAX_SS_MAX;
 						//temp_val.target_val = target_val_center;
 						
 						//g_event_val_new.force_flush = 1;
@@ -996,9 +1109,9 @@ int GUIDEMO_BigCircleUI(int is_smoke_ui)
 						
 					}
 				} else {
-					if (target_val_center > 150) {
+					if (target_val_center > (EXT_MAX_SS_MIN-10)) {
 						target_val_center -= BIG_GAP;
-						if(target_val_center<=150)target_val_center=150;
+						if(target_val_center<=(EXT_MAX_SS_MIN-10))target_val_center=(EXT_MAX_SS_MIN-10);
 						//temp_val.target_val = target_val_center;
 						
 						//g_event_val_new.force_flush = 1;
@@ -1020,10 +1133,14 @@ int GUIDEMO_BigCircleUI(int is_smoke_ui)
 					
 				}else if(0 == is_smoke_ui) {
 					ec_sta = EC11_IDLE;// 忽略该消息
-					if (target_val_center < 160) 
+					if( (target_val_center < (EXT_MAX_SS_MIN)) || (target_val_center > EXT_MAX_SS) )
 					{
+						
 						target_temp_set=target_val_center;
-						target_smoke_set=10;
+						if(target_val_center < (EXT_MAX_SS_MIN))
+							target_smoke_set=10;
+						else
+							target_smoke_set=1;
 						if(g_current_mode!=RUN)
 							return 0;//直接进去startup
 						else
@@ -1140,7 +1257,7 @@ void GUIDEMO_WarnIcon(void)
 
 void GUIDEMO_WifiIcon(int single)
 {
-	GUI_POINT pos_lt={443,36};
+	GUI_POINT pos_lt={245,10};
 	int r=5;
 	//
 	GUI_SetPenSize(5);
@@ -1161,7 +1278,7 @@ void GUIDEMO_WifiIcon(int single)
 
 void GUIDEMO_BluetoothIcon(void)
 {
-	GUI_POINT pos_lt={443,60};
+	GUI_POINT pos_lt={270,10};
 	
 	GUI_POINT pos_1={8,  7};
 	GUI_POINT pos_2={21, 20};
@@ -1911,13 +2028,13 @@ void GUIDEMO_LeftConfirmCancelUI(int sel, int temp, int smoke, int update, int u
 					if(g_is_night_mode!=0)
 						GUI_SetColor(USER_COLOR3_GRAY);
 					
-					if (500 == temp) {
+					if (EXT_MAX_SS_MAX == temp) {
 						sprintf(dispStr,"HIGH // %.d SMOKE", smoke);
 						GUI_DispStringHCenterAt(dispStr,		 126, 128);
-					} else if (150 == temp) {
+					} else if ((EXT_MAX_SS_MIN-10) == temp) {
 						sprintf(dispStr,"LOW SMOKE");
 						GUI_DispStringHCenterAt(dispStr,		 126, 128);
-					} else if (155 == temp) {
+					} else if ((EXT_MAX_SS_MIN-5) == temp) {
 						sprintf(dispStr,"HIGH SMOKE");
 						GUI_DispStringHCenterAt(dispStr,		 126, 128);
 					} else {
@@ -1934,9 +2051,9 @@ void GUIDEMO_LeftConfirmCancelUI(int sel, int temp, int smoke, int update, int u
 					GUI_SetFont(&GUI_FontHelveticaNeueLTStdCn25);
 					if(g_is_night_mode!=0)
 						GUI_SetColor(USER_COLOR3_GRAY);
-					if(temp == 150)
+					if(temp == (EXT_MAX_SS_MIN-10))
 						sprintf(dispStr,"%.3d TEMP // LOW SMOKE",160);
-					else if(temp == 155)
+					else if(temp == (EXT_MAX_SS_MIN-5))
 						sprintf(dispStr,"%.3d TEMP // HIGH SMOKE",220);
 					else
 						sprintf(dispStr,"%.3d TEMP // %.d SMOKE",temp, smoke);
@@ -2100,7 +2217,7 @@ int GUIDEMO_SetupSubItemsUI(int index_new, int index_last)
 				ec_sta = EC11_IDLE;
 			} else if (3 == menu_index) {
 				about_flag = 1;
-				GUIDEMO_ClearScreen(260,0,480,320);
+				GUIDEMO_ClearScreen(250,0,480,320);
 				GUIDEMO_AboutRightUI("123456","CC-Guest","IOS DEVICE", "CCPG V1.7","PPG");
 				ec_sta = EC11_IDLE;
 			}
@@ -2965,9 +3082,9 @@ int GUIDEMO_StartupInitialUI(int mode)
 	
 	if (EC11_BUT == ec_sta) {
 		if (0 == sel) {//confirm
-			if(target_temp_set == 150) 
+			if(target_temp_set == (EXT_MAX_SS_MIN-10)) 
 				g_set_temp=160; //用于控制计算的设定温度
-			else if(target_temp_set == 155) 
+			else if(target_temp_set == (EXT_MAX_SS_MIN-5)) 
 				g_set_temp=220;
 			else 
 				g_set_temp = target_temp_set;
@@ -3132,8 +3249,7 @@ int GUIDEMO_MainMenu(int sel)
 	GUIDEMO_ClearScreen(0,0,480,320);//清除屏幕
 	GUIDEMO_LeftMenuItems(menu_index, menu_index_last, 0, 0);//画左侧6个菜单
 	GUIDEMO_RightTempUI(temp_val, 1, big_temp, 0);//画4个框
-	//GUIDEMO_WifiIcon(0);
-	//GUIDEMO_BluetoothIcon();
+
 	
 	do{
 		if((ret =error_check())!=0)return ret;
@@ -3192,7 +3308,7 @@ int GUIDEMO_MainMenu(int sel)
 		if ((EC11_BUT == ec_sta)&&(menu_index==4))
 		{
 			help_flag = 1;
-			GUIDEMO_ClearScreen(260,0,480,320);
+			GUIDEMO_ClearScreen(250,0,480,320);
 			GUIDEMO_HelpUI();
 			ec_sta = EC11_IDLE;
 		}
@@ -3213,6 +3329,7 @@ void GUIDEMO_AfterLogo(void)
 	//GUIDEMO_BigCircleUI(0);
 	GUIDEMO_MainMenu(0);
 }
+
 int GUIDEMO_error(int err)
 {
 	int temp_val1[5]={11,12,13,14};

@@ -132,7 +132,8 @@ void EXTI3_IRQHandler(void)
 		EXTI_ClearITPendingBit(EXTI_Line3);  //清除LINE3上的中断标志位  
 	}
 }
-
+extern u16 g_idle_mode_counter;
+extern u16 g_run_mode_timeout_counter;
 EC11_STA EC11_KEY_Scan(int mode)
 {	
 	EC11_STA ec_sta = EC11_IDLE;
@@ -155,7 +156,11 @@ EC11_STA EC11_KEY_Scan(int mode)
 		ec_sta = ec11_int_event;
 		ec11_int_event = EC11_IDLE;
 	}
-	
+	if(ec_sta != EC11_IDLE)
+	{
+		g_idle_mode_counter=0;
+		g_run_mode_timeout_counter=0;
+	}
 	return ec_sta;
 }
 

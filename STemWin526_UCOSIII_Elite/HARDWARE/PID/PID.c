@@ -9,7 +9,7 @@ long				I_Err_Sum = 0;
 float				P_out = 0;
 float				I_out = 0;
 float				D_out = 0;
-float				Smoke_Mult = 1;
+float				Smoke_Mult = 1.0;
 
 int					Auger_On;
 int					Auger_Off;
@@ -79,8 +79,8 @@ void PID_Ctr(u16 In_Temp,u16 Temp_Set)
 		{
 		Auger_On_Max = 200;
 		Auger_On_Min = 0.13 * Auger_On_Max;
-		Auger_Ratio_Low = 0.25;
-		Auger_Ratio_High = 1.0;
+		Auger_Ratio_Low = 0.17;
+		Auger_Ratio_High = 0.75;
 		I_Err_Sum_Max = 18000;
 		Temp_Max = 500;
 		Temp_Min = 160;
@@ -109,7 +109,7 @@ void PID_Ctr(u16 In_Temp,u16 Temp_Set)
 				S1_Counter_TempAvg = 0;
 			}	
 			
-			if(PID_dt >= (Auger_On_Max/10))																				// Calculate P,I & D afer time >= dt  (seconds)
+			if(PID_dt >= 5)				//(Auger_On_Max/10))				??? Auger_On_Max * Smoke_Mult   ???											// Calculate P,I & D afer time >= dt  (seconds)
 			{		
 				Temp_Avg = Temp_Sum / Num_Temp_Samples;
 				
@@ -127,17 +127,17 @@ void PID_Ctr(u16 In_Temp,u16 Temp_Set)
 				if(MODEL == 3)																											// *** XXL ***
 				{
 				P_out = 3.0 * ((float)Temp_Set/Temp_Max) * ((float)Temp_Err);
-					if(P_out > 50.0) P_out = 50.0;
-					if(P_out < -50.0) P_out =-50.0;
-				I_out = (30.0 / I_Err_Sum_Max) * I_Err_Sum;
+					if(P_out > (50.0 * Smoke_Mult)) P_out = (50.0 * Smoke_Mult);
+					if(P_out < (-50.0 * Smoke_Mult)) P_out = (-50.0 * Smoke_Mult);
+				I_out = ((30.0 * Smoke_Mult) / I_Err_Sum_Max) * I_Err_Sum;
 				}				
 				else if(MODEL == 2)																									// *** MG ***
 				{
 //				P_out = 2.0 * (Temp_Err);
 				P_out = 3.0 * ((float)Temp_Set/Temp_Max) * ((float)Temp_Err);
-					if(P_out > 50.0) P_out = 50.0;
-					if(P_out < -50.0) P_out =-50.0;
-				I_out = (30.0 / I_Err_Sum_Max) * I_Err_Sum;
+					if(P_out > (50.0 * Smoke_Mult)) P_out = (50.0 * Smoke_Mult);
+					if(P_out < (-50.0 * Smoke_Mult)) P_out = (-50.0 * Smoke_Mult);
+				I_out = ((30.0 * Smoke_Mult) / I_Err_Sum_Max) * I_Err_Sum;
 //				D_out = 40.0*(D_Err_Slope);
 //					if(D_out > 100.0) D_out = 100.0;
 //					if(D_out < -100.0) D_out =-100.0;
@@ -145,10 +145,10 @@ void PID_Ctr(u16 In_Temp,u16 Temp_Set)
 				else if(MODEL == 1)																									// *** DLX, SE, WW ***
 				{
 //				P_out = 2.0 * (Temp_Err);
-				P_out = 3.0 * ((float)Temp_Set/Temp_Max) * ((float)Temp_Err);
-					if(P_out > 50.0) P_out = 50.0;
-					if(P_out < -50.0) P_out =-50.0;
-				I_out = (30.0 / I_Err_Sum_Max) * I_Err_Sum;
+				P_out = 3.0 * ((float)Temp_Set/Temp_Max) * ((float)Temp_Err);				// ***************   TESTING NEW CONTROLLER  *******
+					if(P_out > 50.0) P_out = 50.0; 			//   ****  MAKE MODS FOR SMOKE CONTROL  *********
+					if(P_out < -50.0) P_out = -50.0;		//  ***  USE SAME FOR OTHER MODELS   ******
+				I_out = ((50.0 / I_Err_Sum_Max) * I_Err_Sum);
 //				D_out = 40.0*(D_Err_Slope);
 //					if(D_out > 100.0) D_out = 100.0;
 //					if(D_out < -100.0) D_out =-100.0;
@@ -156,9 +156,9 @@ void PID_Ctr(u16 In_Temp,u16 Temp_Set)
 				else if(MODEL == 0)																									// *** PPG ***
 				{
 				P_out = 3.0 * ((float)Temp_Set/Temp_Max) * ((float)Temp_Err);
-					if(P_out > 50.0) P_out = 50.0;
-					if(P_out < -50.0) P_out =-50.0;
-				I_out = (30.0 / I_Err_Sum_Max) * I_Err_Sum;
+					if(P_out > (50.0 * Smoke_Mult)) P_out = (50.0 * Smoke_Mult);
+					if(P_out < (-50.0 * Smoke_Mult)) P_out = (-50.0 * Smoke_Mult);
+				I_out = ((30.0 * Smoke_Mult) / I_Err_Sum_Max) * I_Err_Sum;
 //				D_out = 50.0*(D_Err_Slope);		
 //					if(D_out > 50.0) D_out = 50.0;
 //					if(D_out < -50.0) D_out =-50.0;			
@@ -178,46 +178,78 @@ void PID_Ctr(u16 In_Temp,u16 Temp_Set)
 			Auger_On_Ini = Auger_On_Ratio * Auger_On_Max;
 			Auger_On = Auger_On_Ini + P_out + I_out + D_out;
 	
-			if((Auger_On < Auger_On_Min))
-					Auger_On = Auger_On_Min;
-			if(Auger_On > (Auger_On_Max * Auger_Ratio_High))
-					Auger_On = Auger_On_Max * Auger_Ratio_High;
+//			if((Auger_On < Auger_On_Min) || (Temp_Err < (-0.10*Temp_Set)))
+//					Auger_On = Auger_On_Min;
+//			if(Auger_On > (Auger_On_Max * Auger_Ratio_High))
+//					Auger_On = Auger_On_Max * Auger_Ratio_High;
+			
+			if(MODEL == 0)
+			{
+				if(Auger_On > (Auger_On_Max * Auger_Ratio_High))
+						Auger_On = Auger_On_Max * Auger_Ratio_High;
+			}
+			else 
+			{
+				if	(Auger_On > Auger_On_Max)
+						Auger_On = Auger_On_Max;
+			}			
 			
 			Auger_Off = Auger_On_Max-Auger_On;
 
 //		***  SMOKE MULTIPLIER CALCULATIONS  ***
 			
-			
-			if ((g_target_temp_val == 150) || (g_target_temp_val == 155))					// LOW & HIGH Smoke Setting
-				Smoke_Mult = 1.5;
-			else if ((Temp_Set >= 160) && (Temp_Set <=250))
-			{
-				Smoke_Max = 1.5;
-				Smoke_Min = 1.0;
-				
-				m_slope_smoke = (Smoke_Max - Smoke_Min)/(10.0 - 1.0);
-				b_offset_smoke = Smoke_Max - (m_slope_smoke * 10.0);
-				
-				Smoke_Mult = (m_slope_smoke * g_smoke_val_percent) + b_offset_smoke;
-			}
-			else if (Temp_Set > 250)
-			{
-				Smoke_Max = 4.0;
-				Smoke_Min = 1.0;
-				
-				m_slope_temp = (Smoke_Max - 1.5)/(Temp_Max - 250);
-				b_offset_temp = Smoke_Max - (m_slope_temp * Temp_Max);
-				
-				Smoke_Max = (m_slope_temp * Temp_Set) + b_offset_temp;
+			if(abs(Temp_Err) <= (0.20*Temp_Set))																		// Only Smoke_Mult if within % of set temp
+			{ 			
+				if (g_target_temp_val == 150)								// LOW Smoke Setting
+					Smoke_Mult = 1.5;
+				else if (g_target_temp_val == 155)					// HIGH Smoke Setting
+					Smoke_Mult = 2.25;
+				else if ((Temp_Set >= 160) && (Temp_Set <= 250))
+				{
+					Smoke_Max = 4.5;
+					Smoke_Min = 1.0;
+					
+					m_slope_temp = (Smoke_Max - 3.0)/(250.0 - 160.0);
+					b_offset_temp = Smoke_Max - (m_slope_temp * 250);
+					
+					Smoke_Max = (m_slope_temp * Temp_Set) + b_offset_temp;
 
-				m_slope_smoke = (Smoke_Max - Smoke_Min)/(10.0 - 1.0);
-				b_offset_smoke = Smoke_Max - (m_slope_smoke * 10.0);
-				
-				Smoke_Mult = (m_slope_smoke * g_smoke_val_percent) + b_offset_smoke;
+					m_slope_smoke = (Smoke_Max - Smoke_Min)/(10.0 - 1.0);
+					b_offset_smoke = Smoke_Max - (m_slope_smoke * 10.0);
+					
+					Smoke_Mult = (m_slope_smoke * g_smoke_val_percent) + b_offset_smoke;
+					
+					/*
+					Smoke_Max = 1.5;
+					Smoke_Min = 1.0;
+					
+					m_slope_smoke = (Smoke_Max - Smoke_Min)/(10.0 - 1.0);
+					b_offset_smoke = Smoke_Max - (m_slope_smoke * 10.0);
+					
+					Smoke_Mult = (m_slope_smoke * g_smoke_val_percent) + b_offset_smoke;
+					*/
+				}
+				else if ((Temp_Set > 250) && (Temp_Set <= 300))
+				{
+					Smoke_Max = 10.0;
+					Smoke_Min = 1.0;
+					
+					m_slope_temp = (Smoke_Max - 4.5)/(300 - 250);
+					b_offset_temp = Smoke_Max - (m_slope_temp * 300);
+					
+					Smoke_Max = (m_slope_temp * Temp_Set) + b_offset_temp;
+
+					m_slope_smoke = (Smoke_Max - Smoke_Min)/(10.0 - 1.0);
+					b_offset_smoke = Smoke_Max - (m_slope_smoke * 10.0);
+					
+					Smoke_Mult = (m_slope_smoke * g_smoke_val_percent) + b_offset_smoke;
+				}
 			}
-	
- 
-			Auger_On = Auger_On * Smoke_Mult;        															// Add smoke multiplier to Auger On/Off times
-			Auger_Off = Auger_Off * Smoke_Mult;			
+			else 
+				Smoke_Mult = 1.0;
+
+					Auger_On = Auger_On * Smoke_Mult;        															// Add smoke multiplier to Auger On/Off times
+					Auger_Off = Auger_Off * Smoke_Mult;		
+				
 
 }

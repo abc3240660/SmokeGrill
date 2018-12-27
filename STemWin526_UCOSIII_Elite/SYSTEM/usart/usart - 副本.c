@@ -4,7 +4,6 @@
 #include "common.h"
 #include "control.h"
 #include "timer.h"
-#include "malloc.h"
 ////////////////////////////////////////////////////////////////////////////////// 	 
 //如果使用os,则包括下面的头文件即可.
 #if SYSTEM_SUPPORT_OS
@@ -84,25 +83,15 @@ int GetKey (void)  {
 #if EN_USART1_RX   //如果使能了接收
 //串口1中断服务程序
 //注意,读取USARTx->SR能避免莫名其妙的错误   	
-//u8 USART_RX_BUF[USART_MAX_RECV_LEN_TEMP];     //接收缓冲,最大USART_MAX_RECV_LEN个字节.
-u8* USART_RX_BUF = NULL;
-u16* STMFLASH_BUF = NULL;
-u16* iapbuf = NULL;
+u8 USART_RX_BUF[USART_MAX_RECV_LEN];     //接收缓冲,最大USART_MAX_RECV_LEN个字节.
 //接收状态
 //bit15，	接收完成标志
 //bit14，	接收到0x0d
 //bit13~0，	接收到的有效字节数目
-u32 USART_RX_STA=0;       //接收状态标记	  
+u16 USART_RX_STA=0;       //接收状态标记	  
 
-extern u8 g_ota_runing;
-extern u32 g_ota_recv_sum;
-extern u16 g_ota_one_pg_recv_tms;
-extern u16 g_ota_pg_numid;
-
-extern u16 g_ota_pg_nums;
-extern u32 g_ota_bin_size;
-
-#define STM_SECTOR_SIZE	2048
+u16 sum_len = 0;
+u16 recv_times = 0;
 
 //初始化IO 串口1 
 //bound:波特率
@@ -142,24 +131,18 @@ void uart_init(u32 bound){
 	USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;	//收发模式
 
     USART_Init(USART1, &USART_InitStructure); //初始化串口
-    //USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);//开启中断
-		USART_ITConfig(USART1, USART_IT_IDLE, ENABLE);//开启空闲中断
+    USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);//开启中断
+		//USART_ITConfig(USART1, USART_IT_IDLE, ENABLE);//开启空闲中断
     USART_Cmd(USART1, ENABLE);                    //使能串口 
 		
-		while(USART_GetFlagStatus(USART1,USART_FLAG_TC) == RESET);
+		//while(USART_GetFlagStatus(USART1,USART_FLAG_TC) == RESET);
 		
 		// 100ms
-		TIM6_Int_Init(9999, 7199);
+		//TIM6_Int_Init(999, 7199);
 		
-		TIM_Cmd(TIM6, DISABLE); //关闭定时器7
+		//TIM_Cmd(TIM6, DISABLE); //关闭定时器7
 		
-		USART_RX_STA=0;
-		
-		USART_RX_BUF = (u8*)mymalloc(SRAMEX, USART_MAX_RECV_LEN);
-		
-		iapbuf = (u16*)mymalloc(SRAMEX, 1024*2);
-		
-		STMFLASH_BUF = (u16*)mymalloc(SRAMEX, (STM_SECTOR_SIZE/2)*2);//最多是2K字节
+		//USART_RX_STA=0;
 }
 extern int g_temp_center;
 extern TEMP_VAL g_temp_val_new;
@@ -180,30 +163,24 @@ extern int g_temp4_error;
 extern int g_temp5_error;
 
 extern int g_fatal_error;
-u8 outbuf[128] = {0};
-int run_cmd_from_usart(u8 *data, u16 num)
+int run_cmd_from_usart(u8 *data, u16 num, u8 *out, u16 outnum)
 {
-	u8 mode = 0;
-	u8 snd_len = 0;
-	u8 *out = outbuf;
-	u16 outbuf_len = 128;
-	
+	int ret=0;
 	if(data[0] != 0xfe)
-		return mode;//非法cmd
-	
+		return ret;//非法cmd
 	switch(data[1])
 	{
 		case 0x01://设定温度
 			g_temp_val_new.target_val = data[3]*100 + data[4]*10 +data[5];
 			g_temp_val_new.target_update = 1;
 			memcpy(out,data,num);
-			snd_len = num;
+			ret = num;
 			break;
 		case 0x02://设定smoke
 			g_temp_val_new.target_smoke = data[2];
 			g_temp_val_new.target_update = 1;
 			memcpy(out,data,num);
-			snd_len = num;
+			ret = num;
 			break;
 		case 0x03://设定
 			switch(data[2])
@@ -219,10 +196,10 @@ int run_cmd_from_usart(u8 *data, u16 num)
 					break;
 			}
 			memcpy(out,data,num);
-			snd_len = num;
+			ret = num;
 			break;
 		case 0x0b://获取状态
-			memset(out,0x00,outbuf_len);
+			memset(out,0x00,outnum);
 			out[0]=0xFE;
 			out[1]=0x0B;
 			out[74]=0xFF;
@@ -281,7 +258,7 @@ int run_cmd_from_usart(u8 *data, u16 num)
 			out[39]=HOT_I == Control_ON? 1:0;//hot
 			out[40]=FAN_I == Control_ON? 1:0;//fun
 			
-			snd_len = 75;
+			ret = 75;
 			break;
 		case 0x06://出厂设置
 			g_feed_mode = 0;
@@ -291,78 +268,107 @@ int run_cmd_from_usart(u8 *data, u16 num)
 			
 			g_temp_val_new.temp_unit = 0;
 			memcpy(out,data,num);
-			snd_len = num;
-			break;
-		case 0xFF:// OTA
-			switch(data[2])
-			{
-				case 0x01:// OTA Notify
-					// FE FF 01 FF
-					// Clost FAN / MOT / HOT
-					g_ota_runing = 1;
-					memcpy(out, data, num);
-					snd_len = num;
-					break;
-				case 0x02:// Total Packages & MD5
-					// FE FF 02 + 3B-Size + 1B-TotalPackagesNum + MD5 + FF
-					// TBD: Clost FAN / MOT / HOT
-				
-				  g_ota_bin_size = data[3]<<16 + data[4]<<8 + data[5];
-					g_ota_pg_nums = data[6];
-					memcpy(out, data, num);
-					snd_len = num;
-					break;
-				case 0x03:// Every Package & MD5
-					// FE FF 03 + 1B-PackageNum + MD5 + FF
-					g_ota_pg_numid = data[3];
-					memcpy(out, data, num);
-					snd_len = num;
-					break;
-				default:
-					break;
-			}
+			ret = num;
 			break;
 		default:
 			break;
 	}
-	
-	if (snd_len != 0) {
-		Recv_Data_Handle(out, snd_len);
-	}
-	
-	return mode;
+	return ret;
 }
-
-void u1_printf(char* fmt,...)  
-{  
-	u16 i,j;
-	va_list ap;
-	va_start(ap,fmt);
-	vsprintf((char*)USART_RX_BUF,fmt,ap);
-	va_end(ap);
-	i=strlen((const char*)USART_RX_BUF);//此次发送数据的长度
-	for(j=0;j<i;j++)//循环发送数据
-	{
-		while(USART_GetFlagStatus(USART1,USART_FLAG_TC)==RESET);//循环发送,直到发送完毕   
-		USART_SendData(UART5,(uint8_t)USART_RX_BUF[j]);   
-	}
-}
-
 void USART1_IRQHandler(void)                	//串口1中断服务程序
-{
+	{
+	u8 Res;
+//	u8 Buf[128];
+		u16 len=128;
+		u16 out=0;
 #ifdef SYSTEM_SUPPORT_OS	 	
 	OSIntEnter();    
 #endif
-
+#if 1
+	if(USART_GetITStatus(USART1, USART_IT_RXNE) != RESET)  //接收中断(接收到的数据必须是0x0d 0x0a结尾)
+		{
+			USART_ClearITPendingBit(USART1, USART_IT_RXNE);
+			
+			TIM_SetCounter(TIM6,0);
+			TIM_Cmd(TIM6, ENABLE);
+			
+#if 0
+		Res =USART_ReceiveData(USART1);//(USART1->DR);	//读取接收到的数据
+		
+		if((USART_RX_STA&0x8000)==0)//接收未完成
+			{
+			if(USART_RX_STA&0x4000)//接收到了0x0d
+				{
+				if(Res!=0x0a)USART_RX_STA=0;//接收错误,重新开始
+				else USART_RX_STA|=0x8000;	//接收完成了 
+				}
+			else //还没收到0X0D
+				{	
+				if(Res==0x0d)USART_RX_STA|=0x4000;
+				else
+					{
+					USART_RX_BUF[USART_RX_STA&0X3FFF]=Res ;
+					USART_RX_STA++;
+					if(USART_RX_STA>(USART_MAX_RECV_LEN-1))USART_RX_STA=0;//接收数据错误,重新开始接收	  
+					}		 
+				}
+			}   
+#endif			
+     }
+#endif
+#if 0
 		 if (USART_GetITStatus(USART1, USART_IT_IDLE) != RESET)  
-	   {
-				TIM_SetCounter(TIM6,0);
-			  TIM_Cmd(TIM6, ENABLE);//使能定时器7
+	    {
 
-	      USART_ClearITPendingBit(USART1, USART_IT_IDLE);         //清除中断标志
-	      USART_ReceiveData(USART1);//读取数据 注意：这句必须要，否则不能够清除中断标志位。
-	   }
-
+	            u16 re_count = 0;             //本帧数据长度
+	            //DMA_Cmd(DMA1_Channel5, DISABLE);  //关闭USART1 RX DMA1 所指示的通道      
+	
+	            re_count = U1_DMA_R_LEN - DMA_GetCurrDataCounter(DMA1_Channel5);	//算出接本帧数据长度
+							if(re_count>U1_DMA_R_LEN) re_count=U1_DMA_R_LEN;
+#if 0
+							sum_len += re_count;
+							recv_times++;
+				
+							if((USART_RX_STA&(1<<15))==0)
+							{ 
+								if(USART_RX_STA<USART_MAX_RECV_LEN)
+								{
+									TIM_SetCounter(TIM6,0);
+									if(USART_RX_STA==0)
+									{
+										TIM_Cmd(TIM6, ENABLE);
+									}
+									
+									if (re_count < (USART_MAX_RECV_LEN - USART_RX_STA)) {
+										//memcpy(&USART_RX_BUF[0], &U1_DMA_R_BUF[0], re_count);
+										USART_RX_STA += re_count;
+									} else {
+										//memcpy(&USART_RX_BUF[0], &U1_DMA_R_BUF[0], (USART_MAX_RECV_LEN - USART_RX_STA));
+										USART_RX_STA += (USART_MAX_RECV_LEN - USART_RX_STA);
+										USART_RX_STA|=1<<15;
+									}
+								}else 
+								{
+									USART_RX_STA|=1<<15;				//????????
+								}
+							}
+#endif
+	            //memcpy(&U1_R_BUF[0], &U1_DMA_R_BUF[0], re_count); //复制到U1_R_BUF
+							//out = run_cmd_from_usart(&U1_R_BUF[0],re_count,Buf,len);
+	            //USART_RX_STA=re_count;
+							
+	            //Recv_Data_Handle(Buf,out);   //处理函数         
+	            //Set_Buf_Free(U1_R_BUF,re_count);//清空数组
+							//Set_Buf_Free(Buf,out);//清空数组
+	            
+	            USART_ClearITPendingBit(USART1, USART_IT_IDLE);         //清除中断标志
+	            USART_ReceiveData(USART1);//读取数据 注意：这句必须要，否则不能够清除中断标志位。
+#if 0
+	            DMA_SetCurrDataCounter(DMA1_Channel5, U1_DMA_R_LEN);//DMA通道的DMA缓存的大小
+	            DMA_Cmd(DMA1_Channel5, ENABLE);  //使能USART1 RX DMA1 所指示的通道 
+#endif
+	    }
+#endif
 #ifdef SYSTEM_SUPPORT_OS	 
 	OSIntExit();  											 
 #endif

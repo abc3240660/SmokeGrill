@@ -1,6 +1,8 @@
 #include "control.h"
 #include "PID.h"
 
+u16 g_idle_mode_counter=0;
+u16 g_run_mode_timeout_counter=0;
 u16 g_startup_mode_counter=0;
 u16 g_run_mode_counter_mins=0;
 u16 g_run_mode_counter_sec=0;

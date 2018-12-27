@@ -60,8 +60,10 @@ void EC11_Clear(void);
 #define MCU_ZET6 1
 
 #ifdef MCU_ZET6
-//#define SRAM_MEMDEV 1
+#define SRAM_MEMDEV 1
 #endif
+
+//#define DMA_COMPLETE_USE 1
 
 #define FOR_PID_USE 1 //PID control»¥³â
 #define FOR_Time_USE 0 //time control
@@ -131,4 +133,17 @@ void EC11_Clear(void);
 #define DIRECT_FEED		  			1003
 #define DIRECT_SHUT_COMPELED		1004
 #define DIRECT_RUN					1006
+
+#define IDLE_TIMEOUT_ERR			1007
+#define RUN_TIMEOUT_ERR			1008
+
+#define TIMEOUT_30S					30
+
+
+
+
+#define EXT_MAX_SS				350
+
+#define EXT_MAX_SS_MIN				160
+#define EXT_MAX_SS_MAX				500
 #endif /* __COMMON_H */

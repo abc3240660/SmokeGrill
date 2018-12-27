@@ -7,11 +7,11 @@
 #define USEING 1
 
 #define U1_DMA_T_LEN	    70		//串口1最大发送缓存字节数
-#define U1_DMA_R_LEN        70
+#define U1_DMA_R_LEN        512
 
 
 extern u8 U1_DMA_R_BUF[U1_DMA_R_LEN];
-extern u8 U1_R_BUF[U1_DMA_R_LEN];
+//extern u8 U1_R_BUF[U1_DMA_R_LEN];
 extern u8 U1_DMA_T_BUF[U1_DMA_T_LEN];
 extern u8 U1_DMA_SEND_FREE_FLAG;
 extern u32 System_Run_Counter;	//机器运行时间，开机开始，关机结束
